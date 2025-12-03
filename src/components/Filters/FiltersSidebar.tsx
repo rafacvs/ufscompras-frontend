@@ -29,7 +29,7 @@ const FiltersSidebar = ({
   onClear,
 }: FiltersSidebarProps) => {
   return (
-    <aside className="rounded-3xl bg-[#1f1c25] p-5 shadow-lg shadow-black/20">
+    <aside className="rounded-2xl bg-[#1f1c25] p-5 shadow-lg shadow-black/20">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Filtrar por</h3>
         <button

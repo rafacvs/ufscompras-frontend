@@ -52,7 +52,7 @@ const ProductPage = () => {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-10">
-      <div className="grid gap-6 lg:grid-cols-[100px,minmax(0,1fr),320px]">
+      <div className="grid gap-6 lg:grid-cols-[96px,minmax(0,1fr),360px]">
         <div className="flex flex-row gap-3 overflow-x-auto lg:flex-col">
           {images.map((image, index) => (
             <button
@@ -60,7 +60,7 @@ const ProductPage = () => {
               key={image.id}
               onClick={() => setSelectedImageIndex(index)}
               className={clsx(
-                'aspect-[3/4] w-20 overflow-hidden rounded-2xl border transition lg:w-full',
+                'aspect-[4/5] w-20 overflow-hidden rounded-xl border transition lg:w-full',
                 selectedImageIndex === index ? 'border-purple' : 'border-transparent',
               )}
             >
@@ -73,17 +73,17 @@ const ProductPage = () => {
           ))}
         </div>
 
-        <div className="rounded-3xl bg-[#1f1c25] p-6">
+        <div className="w-full overflow-hidden rounded-2xl bg-[#1f1c25] max-h-[72vh] md:max-h-[70vh] aspect-[4/3] md:aspect-[3/2]">
           {activeImage?.src ? (
-            <img src={activeImage.src} alt={activeImage.alt} className="mx-auto w-full object-cover" />
+            <img src={activeImage.src} alt={activeImage.alt} className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-full min-h-[360px] items-center justify-center text-offwhite/40">
+            <div className="flex h-full min-h-[300px] items-center justify-center text-offwhite/40">
               Sem imagem disponível
             </div>
           )}
         </div>
 
-        <aside className="rounded-3xl bg-[#1f1c25] p-6 shadow-xl shadow-black/20">
+        <aside className="rounded-2xl bg-[#1f1c25] p-5 shadow-xl shadow-black/20">
           <p className="text-sm uppercase tracking-[0.4em] text-offwhite/60">{product.category}</p>
           <h1 className="mt-2 text-3xl font-bold">{product.name}</h1>
           <p className="text-2xl font-bold text-orange">{formatPrice(product.price)}</p>
@@ -145,7 +145,7 @@ const ProductPage = () => {
         </aside>
       </div>
 
-      <section className="rounded-3xl bg-[#1f1c25] p-6 shadow-inner shadow-black/30">
+      <section className="rounded-2xl bg-[#1f1c25] p-6 shadow-inner shadow-black/30">
         <h3 className="text-lg font-semibold">Descrição</h3>
         <p className="mt-2 text-offwhite/70">{product.description}</p>
       </section>
