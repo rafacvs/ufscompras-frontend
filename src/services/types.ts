@@ -5,9 +5,10 @@ export type ColorToken = {
 };
 
 export type Size = 'XS' | 'P' | 'M' | 'G' | 'GG';
-export type Color = 'preto' | 'branco' | 'vinho' | 'roxo';
+export type Color = string;
 
 export type Category = {
+  id: string;
   slug: string;
   title: string;
   description: string;
@@ -26,6 +27,7 @@ export type Product = {
   name: string;
   price: number;
   category: string;
+  categoryId?: string;
   subcategory: string;
   colors: Color[];
   sizes: Size[];
@@ -40,7 +42,101 @@ export type ProductFilters = {
   sizes?: Size[];
   priceMin?: number;
   priceMax?: number;
+  page?: number;
+  limit?: number;
   sort?: 'price-asc' | 'price-desc';
+  search?: string;
+  onlyFeatured?: boolean;
+};
+
+export type ProductListResponse = {
+  items: Product[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
+export type Accessory = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  image: string;
+};
+
+export type CategoryDocument = {
+  _id: string;
+  nome: string;
+  slug: string;
+  descricao?: string;
+  image?: string;
+  subcategorias?: string[];
+  updatedAt: string;
+};
+
+export type ProductDocument = {
+  _id: string;
+  nome: string;
+  descricao?: string;
+  preco: number;
+  estoque: number;
+  tamanhos: string[];
+  cores: string[];
+  images: string[];
+  isFeatured: boolean;
+  id_categoria: CategoryDocument;
+  updatedAt: string;
+};
+
+export type AccessoryDocument = {
+  _id: string;
+  nome: string;
+  descricao?: string;
+  preco: number;
+  images: string[];
+  ativo: boolean;
+  categorias: CategoryDocument[];
+  updatedAt: string;
+};
+
+export type MovementDocument = {
+  _id: string;
+  tipo: 'Entrada' | 'Saida';
+  quantidade: number;
+  valor_unitario: number;
+  observacao?: string;
+  data_mov: string;
+  id_produto: ProductDocument;
+  id_user: {
+    _id: string;
+    nome: string;
+    email: string;
+  };
+  acessorios?: Array<{
+    _id: string;
+    nome: string;
+    preco: number;
+  }>;
+};
+
+export type SalesReport = {
+  totalUnits: number;
+  totalRevenue: number;
+  period: { from: string | null; to: string | null };
+};
+
+export type StockMovementReport = {
+  Entrada: { totalUnits: number; totalValue: number };
+  Saida: { totalUnits: number; totalValue: number };
+};
+
+export type TopProductReport = {
+  produto: { id: string; nome: string };
+  totalUnits: number;
+  totalRevenue: number;
 };
 
 export const SIZE_ORDER: Size[] = ['XS', 'P', 'M', 'G', 'GG'];

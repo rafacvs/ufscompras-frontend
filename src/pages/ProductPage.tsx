@@ -1,21 +1,66 @@
 import clsx from 'clsx';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import QuantityInput from '../components/QuantityInput';
-import { getProductById } from '../services/api';
-import { COLOR_TOKENS, SIZE_ORDER, type Color, type Size } from '../services/types';
+import { getAccessories, getProductById } from '../services/api';
+import { purchaseProduct } from '../services/orders';
+import { useAuth } from '../context/AuthContext';
+import {
+  COLOR_TOKENS,
+  SIZE_ORDER,
+  type Accessory,
+  type Product,
+  type Size,
+} from '../services/types';
 
 const formatPrice = (price: number) =>
   price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 
 const ProductPage = () => {
   const { id } = useParams<{ id: string }>();
-  const product = useMemo(() => (id ? getProductById(id) : undefined), [id]);
-
+  const { isAuthenticated, token } = useAuth();
+  const [product, setProduct] = useState<Product | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [selectedColor, setSelectedColor] = useState<Color | undefined>();
+  const [selectedColor, setSelectedColor] = useState<string | undefined>();
   const [selectedSize, setSelectedSize] = useState<Size | undefined>();
   const [quantity, setQuantity] = useState(1);
+  const [accessories, setAccessories] = useState<Accessory[]>([]);
+  const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
+  const [isAccessoriesLoading, setIsAccessoriesLoading] = useState(true);
+  const [accessoriesError, setAccessoriesError] = useState(false);
+
+  useEffect(() => {
+    if (!id) {
+      setProduct(undefined);
+      setIsLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoading(true);
+    setHasError(false);
+
+    getProductById(id)
+      .then((data) => {
+        if (!isMounted) return;
+        setProduct(data);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setProduct(undefined);
+        setHasError(true);
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
 
   useEffect(() => {
     if (!product) return;
@@ -23,12 +68,52 @@ const ProductPage = () => {
     setSelectedColor(product.colors[0]);
     setSelectedSize(product.sizes[0]);
     setQuantity(1);
+    setSelectedAccessories([]);
   }, [product]);
+
+  useEffect(() => {
+    if (!product) return;
+
+    let isMounted = true;
+    setIsAccessoriesLoading(true);
+    setAccessoriesError(false);
+
+    const accessoriesParams = product.categoryId ? { categoryId: product.categoryId } : {};
+
+    getAccessories(accessoriesParams)
+      .then((data) => {
+        if (!isMounted) return;
+        setAccessories(data);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setAccessories([]);
+        setAccessoriesError(true);
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setIsAccessoriesLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [product?.id, product?.categoryId]);
+
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-10 text-center">
+        <p className="text-lg font-semibold text-offwhite/70">Carregando produto...</p>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-10 text-center">
-        <p className="text-lg font-semibold text-offwhite/70">Produto não encontrado.</p>
+        <p className="text-lg font-semibold text-offwhite/70">
+          {hasError ? 'Não foi possível carregar o produto.' : 'Produto não encontrado.'}
+        </p>
       </div>
     );
   }
@@ -36,18 +121,43 @@ const ProductPage = () => {
   const images = product.images.length ? product.images : [{ id: 'placeholder', src: '', alt: product.name }];
   const activeImage = images[selectedImageIndex] ?? images[0];
 
-  const availableColorTokens = COLOR_TOKENS.filter((token) =>
-    product.colors.includes(token.value as Color),
-  );
+  const colorTokens = product.colors.map((color) => {
+    const preset = COLOR_TOKENS.find((token) => token.value === color);
+    if (preset) return preset;
+    const isHex = color.startsWith('#') && (color.length === 7 || color.length === 4);
+    return {
+      value: color,
+      label: color,
+      hex: isHex ? color : '#4B4B4B',
+    };
+  });
   const availableSizes = SIZE_ORDER.filter((size) => product.sizes.includes(size));
 
-  const handlePurchase = () => {
-    console.log('Comprar produto', {
-      id: product.id,
-      size: selectedSize,
-      color: selectedColor,
-      quantity,
-    });
+  const accessoriesTotal = selectedAccessories.reduce((total, accessoryId) => {
+    const accessory = accessories.find((item) => item.id === accessoryId);
+    return accessory ? total + accessory.price : total;
+  }, 0);
+
+  const totalPrice = product.price * quantity + accessoriesTotal;
+
+  const handlePurchase = async () => {
+    if (!product) return;
+    if (!isAuthenticated || !token) {
+      window.location.href = `/login?from=${encodeURIComponent(window.location.pathname)}`;
+      return;
+    }
+    try {
+      await purchaseProduct(token, product.id, quantity, selectedAccessories);
+      alert('Compra confirmada! Obrigado.');
+    } catch (error) {
+      alert((error as Error).message ?? 'Falha ao comprar');
+    }
+  };
+
+  const handleAccessoryToggle = (accessoryId: string) => {
+    setSelectedAccessories((prev) =>
+      prev.includes(accessoryId) ? prev.filter((id) => id !== accessoryId) : [...prev, accessoryId],
+    );
   };
 
   return (
@@ -86,7 +196,12 @@ const ProductPage = () => {
         <aside className="rounded-2xl bg-[#1f1c25] p-5 shadow-xl shadow-black/20">
           <p className="text-sm uppercase tracking-[0.4em] text-offwhite/60">{product.category}</p>
           <h1 className="mt-2 text-3xl font-bold">{product.name}</h1>
-          <p className="text-2xl font-bold text-orange">{formatPrice(product.price)}</p>
+          <div className="mt-3 space-y-1 text-sm">
+            <p className="text-xs uppercase tracking-widest text-offwhite/50">Preço base</p>
+            <p className="text-xl font-semibold text-offwhite">{formatPrice(product.price)}</p>
+            <p className="text-xs uppercase tracking-widest text-offwhite/50">Total com acessórios</p>
+            <p className="text-2xl font-bold text-orange">{formatPrice(totalPrice)}</p>
+          </div>
 
           <div className="mt-6 space-y-5 text-sm">
             <div>
@@ -113,14 +228,14 @@ const ProductPage = () => {
             <div>
               <p className="text-xs uppercase tracking-widest text-offwhite/50">Cor</p>
               <div className="mt-3 flex gap-3">
-                {availableColorTokens.map((color) => (
+                {colorTokens.map((color) => (
                   <button
                     key={color.value}
                     type="button"
-                    onClick={() => setSelectedColor(color.value as Color)}
+                    onClick={() => setSelectedColor(color.value)}
                     className={clsx(
                       'h-9 w-9 rounded-full border-2 border-transparent transition',
-                      selectedColor === (color.value as Color) ? 'ring-2 ring-offwhite' : 'border-offwhite/30',
+                      selectedColor === color.value ? 'ring-2 ring-offwhite' : 'border-offwhite/30',
                     )}
                     style={{ backgroundColor: color.hex }}
                     title={color.label}
@@ -133,11 +248,42 @@ const ProductPage = () => {
               <span className="text-xs uppercase tracking-widest text-offwhite/50">Quantidade</span>
               <QuantityInput value={quantity} onChange={setQuantity} />
             </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-widest text-offwhite/50">Acessórios</p>
+              {accessoriesError ? (
+                <p className="mt-2 text-sm text-offwhite/60">Não foi possível carregar os acessórios.</p>
+              ) : isAccessoriesLoading ? (
+                <p className="mt-2 text-sm text-offwhite/60">Carregando...</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {accessories.map((accessory) => (
+                    <label
+                      key={accessory.id}
+                      className="flex items-center justify-between rounded-2xl border border-offwhite/20 px-3 py-2 text-sm"
+                    >
+                      <div className="flex flex-col text-left">
+                        <span className="font-semibold">{accessory.name}</span>
+                        <span className="text-xs text-offwhite/60">{formatPrice(accessory.price)}</span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={selectedAccessories.includes(accessory.id)}
+                        onChange={() => handleAccessoryToggle(accessory.id)}
+                        className="h-4 w-4 rounded border-offwhite/40 bg-dark text-purple focus:ring-purple"
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <button
             type="button"
-            onClick={handlePurchase}
+            onClick={() => {
+              void handlePurchase();
+            }}
             className="mt-8 w-full rounded-full bg-purple py-3 text-center text-sm font-semibold text-offwhite shadow-lg shadow-purple/40 transition hover:brightness-110"
           >
             Comprar

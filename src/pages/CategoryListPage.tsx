@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import FiltersSidebar from '../components/Filters/FiltersSidebar';
 import ProductCard from '../components/ProductCard';
 import { getCategoryBySlug, getProducts } from '../services/api';
-import { COLOR_TOKENS, SIZE_ORDER, type Color, type Size } from '../services/types';
+import { COLOR_TOKENS, SIZE_ORDER, type Category, type Color, type Product, type Size } from '../services/types';
 
 type FiltersState = {
   subcategory?: string;
@@ -13,7 +13,7 @@ type FiltersState = {
   priceMax?: number;
 };
 
-const colorValues = COLOR_TOKENS.map((color) => color.value as Color);
+const colorValues = COLOR_TOKENS.map((color) => color.value);
 
 const parseNumber = (value: string | null) => {
   if (!value) return undefined;
@@ -47,8 +47,44 @@ const CategoryListPage = () => {
       : parseFiltersFromParams(new URLSearchParams(window.location.search)),
   );
   const [sort, setSort] = useState<'price-asc' | 'price-desc'>('price-asc');
+  const [category, setCategory] = useState<Category | undefined>(undefined);
+  const [isCategoryLoading, setIsCategoryLoading] = useState(true);
+  const [categoryError, setCategoryError] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isProductsLoading, setIsProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState(false);
+  const [productsTotal, setProductsTotal] = useState(0);
 
-  const category = useMemo(() => (slug ? getCategoryBySlug(slug) : undefined), [slug]);
+  useEffect(() => {
+    if (!slug) {
+      setCategory(undefined);
+      setIsCategoryLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsCategoryLoading(true);
+    setCategoryError(false);
+
+    getCategoryBySlug(slug)
+      .then((data) => {
+        if (!isMounted) return;
+        setCategory(data);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setCategory(undefined);
+        setCategoryError(true);
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setIsCategoryLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [slug]);
 
   useEffect(() => {
     if (!category) return;
@@ -72,14 +108,16 @@ const CategoryListPage = () => {
   }, [filters, sort, setSearchParams]);
 
   useEffect(() => {
-    if (!slug) return;
-    setFilters({ subcategory: undefined, colors: [], sizes: [], priceMin: undefined, priceMax: undefined });
-    setSort('price-asc');
-  }, [slug]);
+    if (!slug) {
+      setProducts([]);
+      return;
+    }
 
-  const products = useMemo(() => {
-    if (!slug) return [];
-    return getProducts({
+    let isMounted = true;
+    setIsProductsLoading(true);
+    setProductsError(false);
+
+    getProducts({
       category: slug,
       subcategory: filters.subcategory,
       colors: filters.colors,
@@ -87,10 +125,60 @@ const CategoryListPage = () => {
       priceMin: filters.priceMin,
       priceMax: filters.priceMax,
       sort,
-    });
-  }, [slug, filters, sort]);
+      limit: 60,
+    })
+      .then((result) => {
+        if (!isMounted) return;
+        setProducts(result.items);
+        setProductsTotal(result.pagination.total);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setProducts([]);
+        setProductsTotal(0);
+        setProductsError(true);
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setIsProductsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    slug,
+    sort,
+    filters.subcategory,
+    filters.colors,
+    filters.sizes,
+    filters.priceMin,
+    filters.priceMax,
+  ]);
+
+  useEffect(() => {
+    if (!slug) return;
+    setFilters({ subcategory: undefined, colors: [], sizes: [], priceMin: undefined, priceMax: undefined });
+    setSort('price-asc');
+  }, [slug]);
+
+  if (isCategoryLoading) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-10 text-center">
+        <p className="text-lg font-semibold text-offwhite/70">Carregando categoria...</p>
+      </div>
+    );
+  }
 
   if (!category) {
+    if (categoryError) {
+      return (
+        <div className="mx-auto max-w-6xl px-4 py-10 text-center">
+          <p className="text-lg font-semibold text-offwhite/70">Não foi possível carregar a categoria.</p>
+        </div>
+      );
+    }
+
     return (
       <div className="mx-auto max-w-6xl px-4 py-10 text-center">
         <p className="text-lg font-semibold text-offwhite/70">Categoria não encontrada.</p>
@@ -146,7 +234,9 @@ const CategoryListPage = () => {
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <p className="text-sm text-offwhite/70">
-              {products.length} produto{products.length === 1 ? '' : 's'}
+              {isProductsLoading
+                ? 'Carregando produtos...'
+                : `${productsTotal} produto${productsTotal === 1 ? '' : 's'}`}
             </p>
             <label className="flex items-center gap-3 text-sm">
               <span className="text-offwhite/70">Ordenar por</span>
@@ -161,9 +251,13 @@ const CategoryListPage = () => {
             </label>
           </div>
 
-          {products.length === 0 ? (
+          {productsError ? (
             <div className="rounded-3xl bg-[#1f1c25] p-8 text-center text-offwhite/70">
-              Nenhum produto encontrado com os filtros selecionados.
+              Não foi possível carregar os produtos. Tente novamente.
+            </div>
+          ) : products.length === 0 ? (
+            <div className="rounded-3xl bg-[#1f1c25] p-8 text-center text-offwhite/70">
+              {isProductsLoading ? 'Carregando produtos...' : 'Nenhum produto encontrado com os filtros selecionados.'}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">

@@ -78,10 +78,10 @@ const FiltersSidebar = ({
                 key={color.value}
                 type="button"
                 title={color.label}
-                onClick={() => onColorToggle(color.value as Color)}
+                onClick={() => onColorToggle(color.value)}
                 className={clsx(
                   'h-8 w-8 rounded-full border-2 border-transparent transition',
-                  selectedColors.includes(color.value as Color)
+                  selectedColors.includes(color.value)
                     ? 'ring-2 ring-offwhite'
                     : 'border-offwhite/30'
                 )}
